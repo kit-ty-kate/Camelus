@@ -488,8 +488,8 @@ module RepoGit = struct
         seq
           [
             str "packages/";
-            rep1 @@ diff any (char '/');
-            opt @@ seq [char '/'; rep1 @@ diff any (char '/')];
+            rep1 @@ group @@ diff any (char '/');
+            seq [char '/'; rep1 @@ group @@ diff any (char '.'); rep1 @@ diff any (char '/')];
             str "/opam";
           ];
         eos;
@@ -502,12 +502,18 @@ module RepoGit = struct
         match Re.exec_opt opam_hash_and_file_re s with
         | None -> Lwt.return_none
         | Some g ->
-          let hash = Re.Group.get g 1 and f = Re.Group.get g 2 in
-          let filename = OpamFile.make (OpamFilename.of_string f) in
-          try%lwt
-            let%lwt opam = get_blob_exn t hash in
-            Lwt.return_some (OpamFile.OPAM.read_from_string ~filename opam)
-          with _ -> Lwt_io.printlf "failed on %s" f >>= fun () -> Lwt.return_none)
+          let hash = Re.Group.get g 1
+          and f = Re.Group.get g 2
+          and name1 = Re.Group.get g 3
+          and name2 = Re.Group.get g 4 in
+          if String.equal name1 name2 then
+            let filename = OpamFile.make (OpamFilename.of_string f) in
+            try%lwt
+              let%lwt opam = get_blob_exn t hash in
+              Lwt.return_some (OpamFile.OPAM.read_from_string ~filename opam)
+            with _ -> Lwt_io.printlf "failed on %s" f >>= fun () -> Lwt.return_none
+          else
+            Lwt.return_none)
 
 
   (* returns a list (rel_filename * contents) *)
